@@ -31,6 +31,7 @@ import com.tscp.mvne.CreditCard;
 import com.tscp.mvne.CustPmtMap;
 import com.tscp.mvne.CustTopUp;
 import com.tscp.mvne.Customer;
+import com.tscp.mvne.NetworkException_Exception;
 import com.tscp.mvne.NetworkInfo;
 import com.tscp.mvne.PaymentUnitResponse;
 import com.tscp.mvne.ServiceInstance;
@@ -41,7 +42,9 @@ import com.tscp.mvne.TruConnectService;
 public class TruConnectBackend {
   // Test: http://uscael004:8080/TSCPMVNE/TruConnectService?WSDL
   // Prod: http://uscael001-vm5:8080/TSCPMVNE/TruConnectService?WSDL
-  private static final String wsdl = "http://10.10.30.190:8080/TSCPMVNE/TruConnectService?WSDL";
+  // private static final String wsdl =
+  // "http://10.10.30.190:8080/TSCPMVNE/TruConnectService?WSDL";
+  private static final String wsdl = "http://10.10.30.188:8080/TSCPMVNE/TruConnectService?WSDL";
   private static final String nameSpace = "http://mvne.tscp.com/";
   private static final String serviceName = "TruConnectService";
 
@@ -187,7 +190,9 @@ public class TruConnectBackend {
                 ServiceInstance serviceInstance = new ServiceInstance();
                 serviceInstance.setExternalId(account.getMdn());
                 try {
-                  port.suspendService(serviceInstance);
+                  // Method no longer exposed as webmethod. Use suspendAccount
+                  // instead.
+                  // port.suspendService(serviceInstance);
                 } catch (WebServiceException ws_ex) {
                   logger.warn("WebService Exception thrown when suspending MDN " + account.getMdn());
                   logger.warn("Error: " + ws_ex.getMessage());
@@ -271,7 +276,9 @@ public class TruConnectBackend {
                 ServiceInstance serviceInstance = new ServiceInstance();
                 serviceInstance.setExternalId(account.getMdn());
                 try {
-                  port.restoreService(serviceInstance);
+                  // Method no longer exposed as webmethod. Use restoreAccount
+                  // instead.
+                  // port.restoreService(serviceInstance);
                 } catch (WebServiceException ws_ex) {
                   logger.warn("WebService Exception thrown when restoring MDN " + account.getMdn());
                   logger.warn("Error: " + ws_ex.getMessage());
@@ -398,11 +405,15 @@ public class TruConnectBackend {
   }
 
   private NetworkInfo getNetworkInfo(Account account) throws NetworkException {
-    NetworkInfo networkInfo = port.getNetworkInfo(null, account.getMdn());
-    if (networkInfo == null || networkInfo.getEsnmeiddec() == null || networkInfo.getEsnmeiddec().trim().isEmpty()) {
-      throw new NetworkException("Unable to get NetworkInfo for MDN " + account.getMdn());
+    try {
+      NetworkInfo networkInfo = port.getNetworkInfo(null, account.getMdn());
+      if (networkInfo == null || networkInfo.getEsnmeiddec() == null || networkInfo.getEsnmeiddec().trim().isEmpty()) {
+        throw new NetworkException("Unable to get NetworkInfo for MDN " + account.getMdn());
+      }
+      return networkInfo;
+    } catch (NetworkException_Exception e) {
+      throw new NetworkException(e);
     }
-    return networkInfo;
   }
 
   private int getCustomerPaymentDefault(Customer customer) throws CustomerException {

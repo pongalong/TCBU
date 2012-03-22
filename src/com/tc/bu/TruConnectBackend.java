@@ -48,6 +48,7 @@ public class TruConnectBackend {
   private static final String nameSpace = "http://mvne.tscp.com/";
   private static final String serviceName = "TruConnectService";
 
+  private static final String USERNAME = "TCBU";
   private static final String EMAIL_ERROR = "truconnect_alerts@telscape.net";
 
   public static final String SWITCH_STATUS_ACTIVE = "A";
@@ -102,8 +103,10 @@ public class TruConnectBackend {
 
             logger.debug("Calculating total top-up amount");
             int topUpQuantity = 0;
-            CustBalance currentBalance = getCustBalance(account.getAccountno());
-            tscpMvneAccount.setBalance(Double.toString(currentBalance.getRealBalance() * -1));
+            // CustBalance currentBalance =
+            // getCustBalance(account.getAccountno());
+            // tscpMvneAccount.setBalance(Double.toString(currentBalance.getRealBalance()
+            // * -1));
             while (Double.parseDouble(tscpMvneAccount.getBalance()) < 2.0) {
               ++topUpQuantity;
               tscpMvneAccount.setBalance(Double.toString(Double.parseDouble(tscpMvneAccount.getBalance()) + Double.parseDouble(topup.getTopupAmount())));
@@ -551,12 +554,19 @@ public class TruConnectBackend {
     return sdf.format(new Date());
   }
 
+  /**
+   * The balance should already be retrieved when fetching the Account.
+   * 
+   * @param accountNo
+   * @return
+   */
+  @Deprecated
   private CustBalance getCustBalance(int accountNo) {
     Session session = HibernateUtil.getSessionFactory().getCurrentSession();
     session.beginTransaction();
     CustBalance custBalance = null;
     Query q = session.getNamedQuery("get_cust_balance");
-    q.setParameter("in_user_name", "tcbu");
+    q.setParameter("in_user_name", USERNAME);
     q.setParameter("in_account_no", accountNo);
     List<CustBalance> custBalanceList = q.list();
     if (custBalanceList != null && !custBalanceList.isEmpty()) {

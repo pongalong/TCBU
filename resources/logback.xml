@@ -24,7 +24,7 @@
     </encoder>
   </appender>
 
-  <logger name="tcbu" level="ALL">
+  <logger name="com.tc.bu" level="INFO">
     <appender-ref ref="ROLLINGFILE" />
   </logger>
 

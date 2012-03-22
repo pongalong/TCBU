@@ -60,15 +60,35 @@ public class TruConnectBackend {
   static final SimpleDateFormat legibleDate = new SimpleDateFormat("MM/dd/yyyy");
   static final DecimalFormat df = new DecimalFormat("0.00");
 
+  private static String getTimeStamp() {
+    return sdf.format(new Date());
+  }
+
+  public static void main(String[] args) {
+    TruConnectBackend tcb = new TruConnectBackend();
+    System.out.println("Timestamp " + getTimeStamp());
+    try {
+      tcb.chargeAccounts();
+    } catch (WebServiceException wsException) {
+      if (wsException.getMessage().indexOf("Attempted to read or write protected memory") >= 0) {
+        System.err.println("Memory corrupt. Exiting the process.");
+        System.exit(1);
+      }
+    }
+    // tcb.hotlineAccounts();
+    // tcb.restoreAccounts();
+  }
+
   TruConnectService service;
   TruConnect port;
-
   List<Account> chargeList;
+
   List<Account> suspendList;
   List<Account> restoreList;
-
   com.tscp.mvne.Account tscpMvneAccount;
+
   NetworkInfo networkInfo;
+
   Customer customer;
 
   public TruConnectBackend() {
@@ -80,13 +100,17 @@ public class TruConnectBackend {
     }
   }
 
+  public void chargeAccounts() {
+    chargeAccounts(getAccountToChargeList());
+  }
+
   /**
    * 1. Load the customer info and account info 2. Get their set top-up amount
    * 3. Calculate the total number of top-ups required 4. Submit the payment
    * 
    * @param accountList
    */
-  private void chargeAccounts(List<Account> accountList) {
+  public void chargeAccounts(List<Account> accountList) {
     for (Account account : accountList) {
       try {
         if (true /* account.getAccountno() == 693931 */) {
@@ -112,11 +136,11 @@ public class TruConnectBackend {
               tscpMvneAccount.setBalance(Double.toString(Double.parseDouble(tscpMvneAccount.getBalance()) + Double.parseDouble(topup.getTopupAmount())));
             }
             Double chargeAmount = Double.parseDouble(topup.getTopupAmount()) * topUpQuantity;
-            logger.info("Customer will be topped up {} times. Total charge is {}.", topUpQuantity, NumberFormat.getCurrencyInstance().format(chargeAmount));
+            logger.info("Customer will be topped up {} times. Total charge is ${}.", topUpQuantity, NumberFormat.getCurrencyInstance().format(chargeAmount));
 
             try {
               Object[] loggingArgs = { customer.getId(), tscpMvneAccount.getAccountno(), defaultPaymentId, df.format(chargeAmount) };
-              logger.info("Submitting Payment for Customer {} for account {} with pmtId {} for {}.", loggingArgs);
+              logger.info("Submitting Payment for Customer {} for account {} with pmtId {} for ${}.", loggingArgs);
               PaymentUnitResponse response = makePayment(customer, defaultPaymentId, tscpMvneAccount, null, df.format(chargeAmount));
               if (response != null) {
                 logger.info("PaymentUnit Response ");
@@ -167,8 +191,174 @@ public class TruConnectBackend {
     }
   }
 
-  public void chargeAccounts() {
-    chargeAccounts(getAccountToChargeList());
+  public com.tscp.mvne.Account getAccount(int accountNo) throws CustomerException {
+    com.tscp.mvne.Account account = port.getAccountInfo(accountNo);
+    if (account == null) {
+      throw new CustomerException("Error fetching Account " + accountNo);
+    } else if (account.getContactEmail() == null || account.getContactEmail().trim().isEmpty()) {
+      throw new CustomerException("Error fetching Email Address for account " + account.getAccountno());
+    }
+    return account;
+  }
+
+  /**
+   * Now handled in TSCPMVNE.TruConnect.submitPaymentById.
+   * 
+   * @return
+   */
+
+  @Deprecated
+  private List<Account> getAccountsToHotLineList() {
+    logger.info("Fetching accounts to suspend...");
+    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
+    session.beginTransaction();
+    Query q = session.getNamedQuery("sp_fetch_accts_to_hotline");
+    List<Account> accountList = q.list();
+    logger.info("   ...{} accounts will be suspended", accountList.size());
+    for (Account account : accountList) {
+      logger.info(account.toString());
+    }
+    session.getTransaction().commit();
+    return accountList;
+  }
+
+  /**
+   * Now handled in TSCPMVNE.TruConnect.submitPaymentById.
+   * 
+   * @return
+   */
+
+  @Deprecated
+  private List<Account> getAccountsToRestoreList() {
+    logger.info("Fetching accounts to restore...");
+    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
+    session.beginTransaction();
+    Query q = session.getNamedQuery("sp_fetch_accts_to_restore");
+    List<Account> accountList = q.list();
+    logger.info("   ...{} accounts will be restored", accountList.size());
+    for (Account account : accountList) {
+      logger.info(account.toString());
+    }
+    session.getTransaction().commit();
+    return accountList;
+  }
+
+  public List<Account> getAccountToChargeList() {
+    logger.info("Fetching accounts to charge...");
+    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
+    session.beginTransaction();
+    Query q = session.getNamedQuery("sp_fetch_accts_to_charge");
+    List<Account> accountList = q.list();
+    logger.info("   ...{} accounts will be topped-up", accountList.size());
+    session.getTransaction().commit();
+    return accountList;
+  }
+
+  /**
+   * The balance should already be retrieved when fetching the Account.
+   * 
+   * @param accountNo
+   * @return
+   */
+  @Deprecated
+  private CustBalance getCustBalance(int accountNo) {
+    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
+    session.beginTransaction();
+    CustBalance custBalance = null;
+    Query q = session.getNamedQuery("get_cust_balance");
+    q.setParameter("in_user_name", USERNAME);
+    q.setParameter("in_account_no", accountNo);
+    List<CustBalance> custBalanceList = q.list();
+    if (custBalanceList != null && !custBalanceList.isEmpty()) {
+      custBalance = custBalanceList.get(0);
+    }
+    session.getTransaction().commit();
+    return custBalance;
+  }
+
+  private Customer getCustomerFromAccount(int accountno) throws ProcessException {
+    Customer customer = new Customer();
+    try {
+      customer.setId(port.getCustFromAccount(accountno).getCustId());
+    } catch (NullPointerException np_ex) {
+      logger.info(np_ex.getMessage());
+      throw new ProcessException("CustomerRetrieval", "Unable to get customer information from map against account " + accountno);
+    }
+    if (customer.getId() == 0) {
+      logger.info("Customer information from map against account " + accountno + " returned a 0 CustID");
+      throw new ProcessException("CustomerRetrieval", "Customer information from map against account " + accountno + " returned a 0 CustID");
+    }
+    return customer;
+  }
+
+  private void getCustomerInfo(Account account) throws ProcessException {
+    ProcessException process_ex = null;
+    try {
+      logger.debug("Getting Customer Info for Account " + account.getAccountno());
+      customer = getCustomerFromAccount(account.getAccountno());
+      if (customer.getId() == 0) {
+        throw new CustomerException("Customer Info not be found for Account " + account.getAccountno());
+      }
+    } catch (CustomerException cust_ex) {
+      process_ex = new ProcessException("CustomerInformation Retrieval", cust_ex);
+    }
+
+    try {
+      logger.debug("Creating TSCPMVNE.Account Object for customer " + customer.getId());
+      tscpMvneAccount = getAccount(account.getAccountno());
+    } catch (CustomerException cust_ex) {
+      if (process_ex == null) {
+        process_ex = new ProcessException("AccountInformation Retrieval", cust_ex);
+      }
+    }
+    if (process_ex != null) {
+      process_ex.setAccountNo(Integer.toString(account.getAccountno()));
+      process_ex.setMdn(account.getMdn());
+      process_ex.setAccount(tscpMvneAccount);
+      process_ex.setNetworkInfo(networkInfo);
+      throw process_ex;
+    }
+  }
+
+  private int getCustomerPaymentDefault(Customer customer) throws CustomerException {
+    // PaymentInformation paymentInfo = new PaymentInformation();
+    int paymentId = 0;
+    List<CustPmtMap> custPaymentMap = port.getCustPaymentList(customer.getId(), 0);
+    if (custPaymentMap != null && custPaymentMap.size() > 0) {
+      paymentId = custPaymentMap.get(0).getPaymentid();
+    } else {
+      throw new CustomerException("Error retrieving Payments for Customer " + customer.getId());
+    }
+    return paymentId;
+  }
+
+  private CustTopUp getCustomerTopUpAmount(Customer customer, com.tscp.mvne.Account tscpMvneAccount) throws CustomerException {
+    CustTopUp custTopUp = new CustTopUp();
+    custTopUp = port.getCustTopUpAmount(customer, tscpMvneAccount);
+    if (custTopUp == null || custTopUp.getTopupAmount() == null || custTopUp.getTopupAmount().trim().isEmpty()) {
+      throw new CustomerException("Customer topup amount has not been set");
+    }
+    return custTopUp;
+  }
+
+  private NetworkInfo getNetworkInfo(Account account) throws NetworkException {
+    try {
+      NetworkInfo networkInfo = port.getNetworkInfo(null, account.getMdn());
+      if (networkInfo == null || networkInfo.getEsnmeiddec() == null || networkInfo.getEsnmeiddec().trim().isEmpty()) {
+        throw new NetworkException("Unable to get NetworkInfo for MDN " + account.getMdn());
+      }
+      return networkInfo;
+    } catch (NetworkException_Exception e) {
+      throw new NetworkException(e);
+    }
+  }
+
+  private CreditCard getPaymentMethod(int custId, int pmtId) throws CustomerException {
+    CreditCard creditCard = port.getCreditCardDetail(pmtId);
+    if (creditCard == null || creditCard.getCreditCardNumber() == null || creditCard.getCreditCardNumber().trim().isEmpty()) {
+      throw new CustomerException("Error retrieving Credit Card for customer " + custId + " pmt " + pmtId);
+    }
+    return creditCard;
   }
 
   @Deprecated
@@ -256,6 +446,28 @@ public class TruConnectBackend {
 
     } else {
       logger.info("No accounts to hotline");
+    }
+  }
+
+  private PaymentUnitResponse makePayment(Customer customer, int paymentId, com.tscp.mvne.Account account, CreditCard creditCard, String amount)
+      throws PaymentException {
+    logger.debug("Making payment for CustomerId " + customer.getId() + " against Pmt ID " + paymentId + " in the Amount of $" + amount + ".");
+    String sessionid = "CID" + customer.getId() + "T" + getTimeStamp() + "AUTO";
+    try {
+      PaymentUnitResponse response = port.submitPaymentByPaymentId(sessionid, customer, paymentId, account, amount);
+      return response;
+    } catch (WebServiceException wse) {
+      logger.warn("WebService Exception thrown :: " + wse.getMessage());
+      // will catch this exception at main()
+      if (wse.getMessage().indexOf("Attempted to read or write protected memory") >= 0) {
+        throw wse;
+      }
+      // wse.printStackTrace();
+      if (wse.getCause() != null) {
+        logger.warn("Immediate WSException Cause was :: " + wse.getCause().getMessage());
+      }
+      throw new PaymentException(wse.getMessage());
+
     }
   }
 
@@ -351,176 +563,6 @@ public class TruConnectBackend {
     }
   }
 
-  private void getCustomerInfo(Account account) throws ProcessException {
-    ProcessException process_ex = null;
-    try {
-      logger.info("Getting Customer Info for Account " + account.getAccountno());
-      customer = getCustomerFromAccount(account.getAccountno());
-      if (customer.getId() == 0) {
-        throw new CustomerException("Customer Info not be found for Account " + account.getAccountno());
-      }
-    } catch (CustomerException cust_ex) {
-      process_ex = new ProcessException("CustomerInformation Retrieval", cust_ex);
-    }
-
-    try {
-      logger.info("Creating TSCPMVNE.Account Object for customer " + customer.getId());
-      tscpMvneAccount = getAccount(account.getAccountno());
-    } catch (CustomerException cust_ex) {
-      if (process_ex == null) {
-        process_ex = new ProcessException("AccountInformation Retrieval", cust_ex);
-      }
-    }
-    if (process_ex != null) {
-      process_ex.setAccountNo(Integer.toString(account.getAccountno()));
-      process_ex.setMdn(account.getMdn());
-      process_ex.setAccount(tscpMvneAccount);
-      process_ex.setNetworkInfo(networkInfo);
-      throw process_ex;
-    }
-  }
-
-  private CreditCard getPaymentMethod(int custId, int pmtId) throws CustomerException {
-    CreditCard creditCard = port.getCreditCardDetail(pmtId);
-    if (creditCard == null || creditCard.getCreditCardNumber() == null || creditCard.getCreditCardNumber().trim().isEmpty()) {
-      throw new CustomerException("Error retrieving Credit Card for customer " + custId + " pmt " + pmtId);
-    }
-    return creditCard;
-  }
-
-  private com.tscp.mvne.Account getAccount(int accountNo) throws CustomerException {
-    com.tscp.mvne.Account account = port.getAccountInfo(accountNo);
-    if (account == null) {
-      throw new CustomerException("Error fetching Account " + accountNo);
-    } else if (account.getContactEmail() == null || account.getContactEmail().trim().isEmpty()) {
-      throw new CustomerException("Error fetching Email Address for account " + account.getAccountno());
-    }
-    return account;
-  }
-
-  private CustTopUp getCustomerTopUpAmount(Customer customer, com.tscp.mvne.Account tscpMvneAccount) throws CustomerException {
-    CustTopUp custTopUp = new CustTopUp();
-    custTopUp = port.getCustTopUpAmount(customer, tscpMvneAccount);
-    if (custTopUp == null || custTopUp.getTopupAmount() == null || custTopUp.getTopupAmount().trim().isEmpty()) {
-      throw new CustomerException("Customer topup amount has not been set");
-    }
-    return custTopUp;
-  }
-
-  private NetworkInfo getNetworkInfo(Account account) throws NetworkException {
-    try {
-      NetworkInfo networkInfo = port.getNetworkInfo(null, account.getMdn());
-      if (networkInfo == null || networkInfo.getEsnmeiddec() == null || networkInfo.getEsnmeiddec().trim().isEmpty()) {
-        throw new NetworkException("Unable to get NetworkInfo for MDN " + account.getMdn());
-      }
-      return networkInfo;
-    } catch (NetworkException_Exception e) {
-      throw new NetworkException(e);
-    }
-  }
-
-  private int getCustomerPaymentDefault(Customer customer) throws CustomerException {
-    // PaymentInformation paymentInfo = new PaymentInformation();
-    int paymentId = 0;
-    List<CustPmtMap> custPaymentMap = port.getCustPaymentList(customer.getId(), 0);
-    if (custPaymentMap != null && custPaymentMap.size() > 0) {
-      paymentId = custPaymentMap.get(0).getPaymentid();
-    } else {
-      throw new CustomerException("Error retrieving Payments for Customer " + customer.getId());
-    }
-    return paymentId;
-  }
-
-  private Customer getCustomerFromAccount(int accountno) throws ProcessException {
-    Customer customer = new Customer();
-    try {
-      customer.setId(port.getCustFromAccount(accountno).getCustId());
-    } catch (NullPointerException np_ex) {
-      logger.info(np_ex.getMessage());
-      throw new ProcessException("CustomerRetrieval", "Unable to get customer information from map against account " + accountno);
-    }
-    if (customer.getId() == 0) {
-      logger.info("Customer information from map against account " + accountno + " returned a 0 CustID");
-      throw new ProcessException("CustomerRetrieval", "Customer information from map against account " + accountno + " returned a 0 CustID");
-    }
-    return customer;
-  }
-
-  private PaymentUnitResponse makePayment(Customer customer, int paymentId, com.tscp.mvne.Account account, CreditCard creditCard, String amount)
-      throws PaymentException {
-    logger.info("Making payment for CustomerId " + customer.getId() + " against Pmt ID " + paymentId + " in the Amount of $" + amount + ".");
-    String sessionid = "CID" + customer.getId() + "T" + getTimeStamp() + "AUTO";
-    try {
-      PaymentUnitResponse response = port.submitPaymentByPaymentId(sessionid, customer, paymentId, account, amount);
-      return response;
-    } catch (WebServiceException wse) {
-      logger.warn("WebService Exception thrown :: " + wse.getMessage());
-      // will catch this exception at main()
-      if (wse.getMessage().indexOf("Attempted to read or write protected memory") >= 0) {
-        throw wse;
-      }
-      // wse.printStackTrace();
-      if (wse.getCause() != null) {
-        logger.warn("Immediate WSException Cause was :: " + wse.getCause().getMessage());
-      }
-      throw new PaymentException(wse.getMessage());
-
-    }
-  }
-
-  private List<Account> getAccountToChargeList() {
-    logger.info("Fetching accounts to charge...");
-    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
-    session.beginTransaction();
-    Query q = session.getNamedQuery("sp_fetch_accts_to_charge");
-    List<Account> accountList = q.list();
-    logger.info("   ...{} accounts will be topped-up", accountList.size());
-    session.getTransaction().commit();
-    return accountList;
-  }
-
-  /**
-   * Now handled in TSCPMVNE.TruConnect.submitPaymentById.
-   * 
-   * @return
-   */
-
-  @Deprecated
-  private List<Account> getAccountsToHotLineList() {
-    logger.info("Fetching accounts to suspend...");
-    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
-    session.beginTransaction();
-    Query q = session.getNamedQuery("sp_fetch_accts_to_hotline");
-    List<Account> accountList = q.list();
-    logger.info("   ...{} accounts will be suspended", accountList.size());
-    for (Account account : accountList) {
-      logger.info(account.toString());
-    }
-    session.getTransaction().commit();
-    return accountList;
-  }
-
-  /**
-   * Now handled in TSCPMVNE.TruConnect.submitPaymentById.
-   * 
-   * @return
-   */
-
-  @Deprecated
-  private List<Account> getAccountsToRestoreList() {
-    logger.info("Fetching accounts to restore...");
-    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
-    session.beginTransaction();
-    Query q = session.getNamedQuery("sp_fetch_accts_to_restore");
-    List<Account> accountList = q.list();
-    logger.info("   ...{} accounts will be restored", accountList.size());
-    for (Account account : accountList) {
-      logger.info(account.toString());
-    }
-    session.getTransaction().commit();
-    return accountList;
-  }
-
   private void sendEmail(String emailAddress, String subject, String body) {
     MailClient mail = new MailClient();
     Vector<Recipient> recipients = new Vector<Recipient>();
@@ -533,46 +575,5 @@ public class TruConnectBackend {
     } catch (Exception ex) {
       ex.printStackTrace();
     }
-  }
-
-  public static void main(String[] args) {
-    TruConnectBackend tcb = new TruConnectBackend();
-    System.out.println("Timestamp " + getTimeStamp());
-    try {
-      tcb.chargeAccounts();
-    } catch (WebServiceException wsException) {
-      if (wsException.getMessage().indexOf("Attempted to read or write protected memory") >= 0) {
-        System.err.println("Memory corrupt. Exiting the process.");
-        System.exit(1);
-      }
-    }
-    // tcb.hotlineAccounts();
-    // tcb.restoreAccounts();
-  }
-
-  private static String getTimeStamp() {
-    return sdf.format(new Date());
-  }
-
-  /**
-   * The balance should already be retrieved when fetching the Account.
-   * 
-   * @param accountNo
-   * @return
-   */
-  @Deprecated
-  private CustBalance getCustBalance(int accountNo) {
-    Session session = HibernateUtil.getSessionFactory().getCurrentSession();
-    session.beginTransaction();
-    CustBalance custBalance = null;
-    Query q = session.getNamedQuery("get_cust_balance");
-    q.setParameter("in_user_name", USERNAME);
-    q.setParameter("in_account_no", accountNo);
-    List<CustBalance> custBalanceList = q.list();
-    if (custBalanceList != null && !custBalanceList.isEmpty()) {
-      custBalance = custBalanceList.get(0);
-    }
-    session.getTransaction().commit();
-    return custBalance;
   }
 }

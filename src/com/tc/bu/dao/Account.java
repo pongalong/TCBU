@@ -3,11 +3,15 @@ package com.tc.bu.dao;
 public class Account {
   int accountno;
   String mdn;
-
   String realBalance;
 
   public Account() {
 
+  }
+
+  public Account(int accountno, String realBalance) {
+    setAccountno(accountno);
+    setRealBalance(realBalance);
   }
 
   public int getAccountno() {

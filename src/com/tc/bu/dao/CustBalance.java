@@ -1,9 +1,10 @@
 package com.tc.bu.dao;
 
-public class CustBalance {
+import java.io.Serializable;
 
+public class CustBalance implements Serializable {
+  private static final long serialVersionUID = 4753132555335797793L;
   private int accountNo;
-
   private double kenanBalance;
   private double proRatedAmount;
   private double dataCharges;

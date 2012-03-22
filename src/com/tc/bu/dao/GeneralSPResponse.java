@@ -1,13 +1,15 @@
 package com.tc.bu.dao;
 
-public class GeneralSPResponse {
+import java.io.Serializable;
 
+public class GeneralSPResponse implements Serializable {
+  private static final long serialVersionUID = 6388990599511698931L;
   private int mvnemsgcode;
-
   private String status;
   private String mvnemsg;
 
   public GeneralSPResponse() {
+
   }
 
   public int getMvnemsgcode() {

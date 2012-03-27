@@ -6,9 +6,14 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Vector;
+import java.util.Set;
 
+import javax.mail.Address;
+import javax.mail.MessagingException;
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
 import javax.xml.namespace.QName;
 import javax.xml.ws.WebServiceException;
 
@@ -26,7 +31,6 @@ import com.tc.bu.exception.NetworkException;
 import com.tc.bu.exception.PaymentException;
 import com.tc.bu.exception.ProcessException;
 import com.tc.bu.util.email.MailClient;
-import com.tc.bu.util.email.Recipient;
 import com.tscp.mvne.CreditCard;
 import com.tscp.mvne.CustPmtMap;
 import com.tscp.mvne.CustTopUp;
@@ -206,7 +210,6 @@ public class TruConnectBackend {
    * 
    * @return
    */
-
   @Deprecated
   private List<Account> getAccountsToHotLineList() {
     logger.info("Fetching accounts to suspend...");
@@ -227,7 +230,6 @@ public class TruConnectBackend {
    * 
    * @return
    */
-
   @Deprecated
   private List<Account> getAccountsToRestoreList() {
     logger.info("Fetching accounts to restore...");
@@ -243,7 +245,7 @@ public class TruConnectBackend {
     return accountList;
   }
 
-  public List<Account> getAccountToChargeList() {
+  protected List<Account> getAccountToChargeList() {
     logger.info("Fetching accounts to charge...");
     Session session = HibernateUtil.getSessionFactory().getCurrentSession();
     session.beginTransaction();
@@ -321,7 +323,6 @@ public class TruConnectBackend {
   }
 
   private int getCustomerPaymentDefault(Customer customer) throws CustomerException {
-    // PaymentInformation paymentInfo = new PaymentInformation();
     int paymentId = 0;
     List<CustPmtMap> custPaymentMap = port.getCustPaymentList(customer.getId(), 0);
     if (custPaymentMap != null && custPaymentMap.size() > 0) {
@@ -339,18 +340,6 @@ public class TruConnectBackend {
       throw new CustomerException("Customer topup amount has not been set");
     }
     return custTopUp;
-  }
-
-  private NetworkInfo getNetworkInfo(Account account) throws NetworkException {
-    try {
-      NetworkInfo networkInfo = port.getNetworkInfo(null, account.getMdn());
-      if (networkInfo == null || networkInfo.getEsnmeiddec() == null || networkInfo.getEsnmeiddec().trim().isEmpty()) {
-        throw new NetworkException("Unable to get NetworkInfo for MDN " + account.getMdn());
-      }
-      return networkInfo;
-    } catch (NetworkException_Exception e) {
-      throw new NetworkException(e);
-    }
   }
 
   private CreditCard getPaymentMethod(int custId, int pmtId) throws CustomerException {
@@ -565,15 +554,15 @@ public class TruConnectBackend {
 
   private void sendEmail(String emailAddress, String subject, String body) {
     MailClient mail = new MailClient();
-    Vector<Recipient> recipients = new Vector<Recipient>();
-    Recipient recipient = new Recipient();
-    recipient.setEmailAddress(emailAddress);
-    recipients.add(recipient);
     try {
+      Set<Address> recipients = new HashSet<Address>();
+      recipients.add(new InternetAddress(emailAddress));
       body = EmailHelper.getEmailHeader() + body + EmailHelper.getEmailFooter();
       mail.postMail(recipients, subject, body, MailClient.SYSTEM_SENDER);
-    } catch (Exception ex) {
-      ex.printStackTrace();
+    } catch (AddressException e) {
+      e.printStackTrace();
+    } catch (MessagingException e) {
+      e.printStackTrace();
     }
   }
 }

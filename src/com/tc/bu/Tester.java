@@ -6,24 +6,24 @@ import java.util.List;
 import com.tc.bu.dao.Account;
 import com.tc.bu.exception.CustomerException;
 
-public class Tester {
-  private static TruConnectBackend tcbu = new TruConnectBackend();
+public class Tester extends TruConnectBackend {
+  private static Tester tester = new Tester();
 
   public static void main(String[] args) {
     System.out.println(">> Processing started...");
     // List<Account> accounts = getAccountList_20120321();
-    List<Account> accounts = tcbu.getAccountToChargeList();
+    List<Account> accounts = tester.getAccountToChargeList();
     System.out.println(">> Charging the following " + accounts.size() + " accounts:\n");
     printAccountInfo(accounts);
     System.out.println();
-    tcbu.chargeAccounts(accounts);
+    // tester.chargeAccounts(accounts);
   }
 
   private static void printAccountInfo(List<Account> accounts) {
     com.tscp.mvne.Account mvneAcc;
     try {
       for (Account account : accounts) {
-        mvneAcc = tcbu.getAccount(account.getAccountno());
+        mvneAcc = tester.getAccount(account.getAccountno());
         System.out.println(mvneAcc.getAccountno() + "\t\t" + mvneAcc.getBalance() + "\t\t" + mvneAcc.getContactEmail());
       }
     } catch (CustomerException e) {

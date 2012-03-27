@@ -25,7 +25,7 @@ public class MailClient {
   public MailClient() {
     try {
       bcc.add(new InternetAddress("peter.maas@truconnect.com", "Peter Maas"));
-      bcc.add(new InternetAddress("trualert@truconnect.com", "TruConnect Alerts"));
+      bcc.add(new InternetAddress("trualert@telscape.net", "TruConnect Alerts"));
     } catch (UnsupportedEncodingException e) {
       e.printStackTrace();
     }
@@ -72,7 +72,7 @@ public class MailClient {
       postMail(validAddresses, from, subject, message);
       try {
         Set<Address> errorRecipients = new HashSet<Address>();
-        InternetAddress ia = new InternetAddress("trualert@truconnect.com", "TruConnect TCBU System");
+        InternetAddress ia = new InternetAddress("trualert@telscape.net", "TruConnect TCBU System");
         errorRecipients.add(ia);
         String exceptionMessage = "EXCEPTION MESSAGE:\n" + e.getMessage();
         String originalTo = "ORIGINAL RECIPIENTS:\n" + to.toString();

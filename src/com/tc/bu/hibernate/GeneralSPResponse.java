@@ -1,4 +1,4 @@
-package com.tc.bu.dao;
+package com.tc.bu.hibernate;
 
 import java.io.Serializable;
 

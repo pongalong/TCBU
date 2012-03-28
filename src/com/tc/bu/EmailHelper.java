@@ -1,8 +1,32 @@
 package com.tc.bu;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import javax.mail.Address;
+import javax.mail.MessagingException;
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
+
 import com.tc.bu.exception.ProcessException;
+import com.tc.bu.util.email.MailClient;
+import com.tscp.mvne.Account;
 
 public class EmailHelper {
+
+  public static void sendEmail(String emailAddress, String subject, String body) {
+    MailClient mail = new MailClient();
+    try {
+      Set<Address> recipients = new HashSet<Address>();
+      recipients.add(new InternetAddress(emailAddress));
+      body = EmailHelper.getEmailHeader() + body + EmailHelper.getEmailFooter();
+      mail.postMail(recipients, subject, body, MailClient.SYSTEM_SENDER);
+    } catch (AddressException e) {
+      e.printStackTrace();
+    } catch (MessagingException e) {
+      e.printStackTrace();
+    }
+  }
 
   public static String getEmailHeader() {
     StringBuffer header = new StringBuffer();
@@ -43,14 +67,14 @@ public class EmailHelper {
     return footer.toString();
   }
 
-  public static String getPaymentSuccessBody(String userName, String accountNo, String tn, String esn, String confirmationNumber, String amount,
-      String paymentMethod, String paymentSource, String paymentDate, String balance) {
+  public static String getPaymentSuccessBody(Account account, String tn, String esn, String confirmationNumber, String amount, String paymentMethod,
+      String paymentSource, String paymentDate) {
     StringBuffer body = new StringBuffer();
     body.append("<div style=\"color:#2554C7; font-size:1.25em; background:#EAEAEA\"> \n");
     body.append("<b>Your TruConnect Payment Processed</b> \n");
     body.append("</div> \n");
     body.append("<p> \n");
-    body.append("   <b>Dear " + userName + ",</b> \n");
+    body.append("   <b>Dear " + account.getFirstname() + ",</b> \n");
     body.append("</p> \n");
     body.append("<p>Thank you for your payment. Your payment has been successfully processed and will be noted immediately to your account. Below you will find the transaction information regarding your payment.</p> \n");
     body.append("");
@@ -65,7 +89,7 @@ public class EmailHelper {
     body.append("       <th>Payment Source</th> \n");
     body.append("       <th>Payment Date</th> \n");
     body.append("       <tr>");
-    body.append("           <td>" + accountNo + "</td> \n");
+    body.append("           <td>" + account.getAccountno() + "</td> \n");
     body.append("           <td>" + tn + "</td> \n");
     body.append("           <td>" + esn + "</td> \n");
     body.append("           <td>" + confirmationNumber + "</td> \n");
@@ -86,14 +110,14 @@ public class EmailHelper {
     return body.toString();
   }
 
-  public static String getPaymentFailureBody(String userName, String accountNumber, String tn, String esn, String paymentAmount, String paymentMethod,
-      String paymentSource, String paymentDate, String comments, String remainingBalance) {
+  public static String getPaymentFailureBody(Account account, String tn, String esn, String paymentAmount, String paymentMethod, String paymentSource,
+      String paymentDate, String comments) {
     StringBuffer body = new StringBuffer();
     body.append("<div style=\"color:#306EFF; font-size:1.25em; background:#EAEAEA\">\n ");
     body.append("<b>Your TruConnect Payment Failed to Process</b>\n ");
     body.append("</div>\n ");
     body.append("<p>\n ");
-    body.append("   <b>Dear " + userName + ",</b>\n ");
+    body.append("   <b>Dear " + account.getFirstname() + ",</b>\n ");
     body.append("</p>\n ");
     body.append("<p>Your payment has encountered issues when attempting to top up funds to your account. Below you will find the transaction information regarding your attempted payment.</p>\n ");
     body.append("\n ");
@@ -108,7 +132,7 @@ public class EmailHelper {
     body.append("       <th>Payment Date</th>\n ");
     body.append("       <th>Comments</th>\n ");
     body.append("       <tr>\n ");
-    body.append("           <td>" + accountNumber + "</td>\n ");
+    body.append("           <td>" + account.getAccountno() + "</td>\n ");
     body.append("           <td>" + tn + "</td> \n");
     body.append("           <td>" + esn + "</td> \n");
     body.append("           <td>$" + paymentAmount + "</td>\n ");
@@ -125,21 +149,21 @@ public class EmailHelper {
     body.append("</p>\n ");
     body.append("<p>\n ");
     body.append("   Please make any necessary modifications to your payment information and add funds to your account to avoid service interruption. Your remaining balance is <b>"
-        + remainingBalance + "</b> ");
+        + account.getBalance() + "</b> ");
     body.append("</p>\n ");
     return body.toString();
   }
 
-  public static String getSuspendedAccountNotification(String userName, String accountno, String mdn, String esn, String suspendDate) {
+  public static String getSuspendedAccountNotification(Account account, String mdn, String esn, String suspendDate) {
     StringBuffer body = new StringBuffer();
     body.append("<div style=\"color:#306EFF; font-size:1.25em; background:#EAEAEA\"> \n");
     body.append("<b>Your TruConnect Service has been Suspended</b> \n");
     body.append("</div> \n");
     body.append("<p> \n");
-    body.append("   <b>Dear " + userName + ",</b> \n");
+    body.append("   <b>Dear " + account.getFirstname() + ",</b> \n");
     body.append("</p> \n");
     body.append("<p>Services associated with your account "
-        + accountno
+        + account.getAccountno()
         + " have been temporarily suspended due to lack of funds. Please add more funds your account inorder to restore service. Below you will find the device information regarding this suspension.</p> \n");
     body.append(" \n");
     body.append("<p> \n");
@@ -149,7 +173,7 @@ public class EmailHelper {
     body.append("       <th>ESN</th> \n");
     body.append("       <th>Suspend Date</th> \n");
     body.append("       <tr> \n");
-    body.append("           <td>" + accountno + "</td> \n");
+    body.append("           <td>" + account.getAccountno() + "</td> \n");
     body.append("           <td>" + mdn + "</td> \n");
     body.append("           <td>" + esn + "</td> \n");
     body.append("           <td>" + suspendDate + "</td> \n");
@@ -166,15 +190,15 @@ public class EmailHelper {
     return body.toString();
   }
 
-  public static String getRestoredAccountNotification(String userName, String accountno, String mdn, String esn, String restoreDate) {
+  public static String getRestoredAccountNotification(Account account, String mdn, String esn, String restoreDate) {
     StringBuffer body = new StringBuffer();
     body.append("<div style=\"color:#306EFF; font-size:1.25em; background:#EAEAEA\"> \n");
     body.append("<b>Your TruConnect Service has been Restored</b> \n");
     body.append("</div> \n");
     body.append("<p> \n");
-    body.append("   <b>Dear " + userName + ",</b> \n");
+    body.append("   <b>Dear " + account.getFirstname() + ",</b> \n");
     body.append("</p> \n");
-    body.append("<p>Services associated with your account " + accountno
+    body.append("<p>Services associated with your account " + account.getAccountno()
         + " have been restored. Below you will find the device information regarding this restoral transaction.</p> \n");
     body.append(" \n");
     body.append("<p> \n");
@@ -184,7 +208,7 @@ public class EmailHelper {
     body.append("       <th>ESN</th> \n");
     body.append("       <th>Restore Date</th> \n");
     body.append("       <tr> \n");
-    body.append("           <td>" + accountno + "</td> \n");
+    body.append("           <td>" + account.getAccountno() + "</td> \n");
     body.append("           <td>" + mdn + "</td> \n");
     body.append("           <td>" + esn + "</td> \n");
     body.append("           <td>" + restoreDate + "</td> \n");
@@ -201,13 +225,13 @@ public class EmailHelper {
     return body.toString();
   }
 
-  public static String getErrorBody(String userName, String accountno, String mdn, String esn, String action, String error) {
+  public static String getErrorBody(Account account, String mdn, String esn, String action, String error) {
     StringBuffer body = new StringBuffer();
     body.append(" <div style=\"color:#306EFF; font-size:1.25em; background:#EAEAEA\"> ");
     body.append(" <b>Your TruConnect Service has encountered an error</b> ");
     body.append(" </div> ");
     body.append(" <p> ");
-    body.append("   <b>Dear " + userName + ",</b> ");
+    body.append("   <b>Dear " + account.getFirstname() + ",</b> ");
     body.append(" </p> ");
     body.append(" <p>An error was encountered when processing your service.</p> ");
     body.append(" <p>&nbsp;&nbsp;&nbsp;&nbsp;<i>" + error + "</i></p> ");
@@ -220,7 +244,7 @@ public class EmailHelper {
     body.append("       <th>ESN</th> ");
     body.append("       <th>Action</th> ");
     body.append("       <tr> ");
-    body.append("           <td>" + accountno + "</td> ");
+    body.append("           <td>" + account.getAccountno() + "</td> ");
     body.append("           <td>" + mdn + "</td> ");
     body.append("           <td>" + esn + "</td> ");
     body.append("           <td>" + action + "</td> ");
@@ -234,7 +258,6 @@ public class EmailHelper {
     body.append(" <p> ");
     body.append("   Thank you for choosing TruConnect for your wireless and data needs. We value your business and look forward to serving you! ");
     body.append(" </p> ");
-
     return body.toString();
   }
 
@@ -287,7 +310,6 @@ public class EmailHelper {
     body.append(" <p> ");
     body.append("   Thank you for choosing TruConnect for your wireless and data needs. We value your business and look forward to serving you! ");
     body.append(" </p> ");
-
     return body.toString();
   }
 

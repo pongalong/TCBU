@@ -4,9 +4,9 @@
         "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
         "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
 
-<hibernate-mapping package="com.tc.bu.dao">
+<hibernate-mapping package="com.tc.bu.account">
 
-  <class name="com.tc.bu.dao.CustBalance">
+  <class name="com.tc.bu.account.CustBalance">
     <id name="accountNo" column="account_no" />
     <property name="kenanBalance" column="kenan_balance" />
     <property name="proRatedAmount" column="pro_rated_amount" />
@@ -16,7 +16,7 @@
   </class>
 
   <sql-query name="get_cust_balance" callable="true">
-    <return class="com.tc.bu.dao.CustBalance">
+    <return class="com.tc.bu.account.CustBalance">
       <return-property name="accountNo" column="account_no" />
       <return-property name="kenanBalance" column="kenan_balance" />
       <return-property name="proRatedAmount" column="pro_rated_amount" />

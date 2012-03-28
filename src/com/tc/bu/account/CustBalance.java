@@ -1,7 +1,14 @@
-package com.tc.bu.dao;
+package com.tc.bu.account;
 
 import java.io.Serializable;
 
+/**
+ * Unused in this project.
+ * 
+ * @author Tachikoma
+ * 
+ */
+@Deprecated
 public class CustBalance implements Serializable {
   private static final long serialVersionUID = 4753132555335797793L;
   private int accountNo;

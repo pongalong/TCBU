@@ -1,4 +1,4 @@
-package com.tc.bu.db;
+package com.tc.bu.hibernate;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;

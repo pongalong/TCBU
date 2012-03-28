@@ -1,4 +1,4 @@
-package com.tc.bu;
+package com.tc.bu.util.email;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -9,7 +9,6 @@ import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 
 import com.tc.bu.exception.ProcessException;
-import com.tc.bu.util.email.MailClient;
 import com.tscp.mvne.Account;
 
 public class EmailHelper {

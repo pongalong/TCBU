@@ -20,6 +20,7 @@ import com.tc.bu.account.AccountToProcess;
 import com.tc.bu.exception.CustomerException;
 import com.tc.bu.exception.PaymentException;
 import com.tc.bu.hibernate.HibernateUtil;
+import com.tc.bu.util.email.EmailHelper;
 import com.tscp.mvne.Account;
 import com.tscp.mvne.CreditCard;
 import com.tscp.mvne.CustPmtMap;
